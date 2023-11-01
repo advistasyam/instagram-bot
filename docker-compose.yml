@@ -1,8 +1,9 @@
 version: "3.9"
 services:
-  intagram_bot:
-    container_name: instagram_bot
+  instagram_bot:
     build:
-      context: ./
+      context: .
       dockerfile: Dockerfile
+    volumes:
+      - ./followers.json:/app/followers.json
     restart: always

@@ -1,6 +1,5 @@
 import { IgApiClient } from 'instagram-private-api';
 import fs from 'fs';
-import { checkForNewFollowersAndSendMessage } from "./function/checkForNewFollowersAndSendMessage.js";
 import dotenv from "dotenv";
 
 // read .env file
@@ -24,25 +23,39 @@ ig.state.generateDevice(username);
   await ig.account.login(username, password);
   console.log("account logged in");
 
-  if (!savedState) {
-    // initiate followers.json
-    console.log("initiating followers.json");
-    const accountDetails = await ig.account.currentUser();
-    const followers = await ig.feed.accountFollowers(accountDetails.pk).items();
-    savedState = { followers: followers.map(follower => follower.pk) };
-    fs.writeFileSync('followers.json', JSON.stringify(savedState));
+  async function sendMessageToUser(userId, message) {
+    try {
+      const thread = ig.entity.directThread([userId.toString()]);
+      await thread.broadcastText(message);
+      console.log(`Message sent successfully to user with ID ${userId}: ${message}`);
+    } catch (error) {
+      console.error(`Failed to send message to user with ID ${userId}: ${error}`);
+    }
+  }
 
-    console.log("followers.json created and ready to used");
+  async function checkForNewFollowersAndSendMessage() {
+    try {
+      const accountDetails = await ig.account.currentUser();
+      const followers = await ig.feed.accountFollowers(accountDetails.pk).items();
+
+      if (savedState && savedState.followers) {
+        const newFollowers = followers.filter(follower => !savedState.followers.includes(follower.pk));
+        for (const follower of newFollowers) {
+          await sendMessageToUser(follower.pk, 'Thank you for following! This is an automated message.');
+        }
+      }
+
+      savedState = { followers: followers.map(follower => follower.pk) };
+      fs.writeFileSync('followers.json', JSON.stringify(savedState));
+
+    } catch (error) {
+      console.error(`Error occurred: ${error}`);
+    }
   }
 
   await ig.state.deserialize(savedState);
 
   // Check for new followers every minute
-  setInterval(function() {
-    checkForNewFollowersAndSendMessage(ig, savedState)
-  }, 60 * 1000);
-
-  // initial check for new followers when the script starts
-  await checkForNewFollowersAndSendMessage(ig, savedState);
+  setInterval(checkForNewFollowersAndSendMessage, 60 * 1000);
 
 })();
