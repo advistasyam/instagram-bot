@@ -20,8 +20,28 @@ const ig = new IgApiClient();
 ig.state.generateDevice(username);
 
 (async () => {
+  // Restore previous state if available
+  if (savedState) {
+    await ig.state.deserialize(savedState);
+  }
+
   await ig.account.login(username, password);
   console.log("account logged in");
+
+  const accountDetails = await ig.account.currentUser();
+  const accountId = accountDetails.pk;
+
+  async function populateFollowersJson() {
+    try {
+      const followers = await ig.feed.accountFollowers(accountId).items();
+      savedState = { followers: followers.map(follower => follower.pk) };
+      fs.writeFileSync('followers.json', JSON.stringify(savedState));
+
+      console.log("followers json populated");
+    } catch {
+      console.error(`Error occurred when populate followers json : ${error}`);
+    }
+  }
 
   async function sendMessageToUser(userId, message) {
     try {
@@ -35,8 +55,7 @@ ig.state.generateDevice(username);
 
   async function checkForNewFollowersAndSendMessage() {
     try {
-      const accountDetails = await ig.account.currentUser();
-      const followers = await ig.feed.accountFollowers(accountDetails.pk).items();
+      const followers = await ig.feed.accountFollowers(accountId).items();
 
       if (savedState && savedState.followers) {
         const newFollowers = followers.filter(follower => !savedState.followers.includes(follower.pk));
@@ -53,7 +72,10 @@ ig.state.generateDevice(username);
     }
   }
 
-  await ig.state.deserialize(savedState);
+  // populate followers json
+  await populateFollowersJson();
+
+  console.log("application ready to listen to new followers");
 
   // Check for new followers every minute
   setInterval(checkForNewFollowersAndSendMessage, 60 * 1000);
