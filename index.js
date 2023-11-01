@@ -1,6 +1,10 @@
-const { IgApiClient } = require('instagram-private-api');
-const fs = require('fs');
-require('dotenv').config();
+import { IgApiClient } from 'instagram-private-api';
+import fs from 'fs';
+import { checkForNewFollowersAndSendMessage } from "./function/checkForNewFollowersAndSendMessage.js";
+import dotenv from "dotenv";
+
+// read .env file
+dotenv.config();
 
 const username = process.env.IG_USERNAME
 const password = process.env.IG_PASSWORD
@@ -13,50 +17,32 @@ try {
 }
 
 const ig = new IgApiClient();
+
 ig.state.generateDevice(username);
-ig.state.proxyUrl = process.env.IG_PROXY; // Use a proxy if needed
 
 (async () => {
-  if (savedState) {
-    await ig.state.deserialize(savedState);
-  }
-
   await ig.account.login(username, password);
+  console.log("account logged in");
 
-  async function sendMessageToUser(userId, message) {
-    try {
-      const thread = ig.entity.directThread([userId.toString()]);
-      await thread.broadcastText(message);
-      console.log(`Message sent successfully to user with ID ${userId}: ${message}`);
-    } catch (error) {
-      console.error(`Failed to send message to user with ID ${userId}: ${error}`);
-    }
+  if (!savedState) {
+    // initiate followers.json
+    console.log("initiating followers.json");
+    const accountDetails = await ig.account.currentUser();
+    const followers = await ig.feed.accountFollowers(accountDetails.pk).items();
+    savedState = { followers: followers.map(follower => follower.pk) };
+    fs.writeFileSync('followers.json', JSON.stringify(savedState));
+
+    console.log("followers.json created and ready to used");
   }
 
-  async function checkForNewFollowersAndSendMessage() {
-    try {
-      const accountDetails = await ig.account.currentUser();
-      const followers = await ig.feed.accountFollowers(accountDetails.pk).items();
-
-      if (savedState && savedState.followers) {
-        const newFollowers = followers.filter(follower => !savedState.followers.includes(follower.pk));
-        for (const follower of newFollowers) {
-          await sendMessageToUser(follower.pk, 'Thank you for following! This is an automated message.');
-        }
-      }
-
-      savedState = { followers: followers.map(follower => follower.pk) };
-      fs.writeFileSync('followers.json', JSON.stringify(savedState));
-
-    } catch (error) {
-      console.error(`Error occurred: ${error}`);
-    }
-  }
+  await ig.state.deserialize(savedState);
 
   // Check for new followers every minute
-  setInterval(checkForNewFollowersAndSendMessage, 60 * 1000);
+  setInterval(function() {
+    checkForNewFollowersAndSendMessage(ig, savedState)
+  }, 60 * 1000);
 
   // initial check for new followers when the script starts
-  await checkForNewFollowersAndSendMessage();
+  await checkForNewFollowersAndSendMessage(ig, savedState);
 
 })();
