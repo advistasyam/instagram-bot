@@ -7,6 +7,7 @@ dotenv.config();
 
 const username = process.env.IG_USERNAME
 const password = process.env.IG_PASSWORD
+const message = process.env.MESSAGE
 
 let savedState;
 try {
@@ -47,7 +48,7 @@ ig.state.generateDevice(username);
     try {
       const thread = ig.entity.directThread([userId.toString()]);
       await thread.broadcastText(message);
-      console.log(`Message sent successfully to user with ID ${userId}: ${message}`);
+      console.log(`Message sent successfully to user with ID ${userId}`);
     } catch (error) {
       console.error(`Failed to send message to user with ID ${userId}: ${error}`);
     }
@@ -60,7 +61,7 @@ ig.state.generateDevice(username);
       if (savedState && savedState.followers) {
         const newFollowers = followers.filter(follower => !savedState.followers.includes(follower.pk));
         for (const follower of newFollowers) {
-          await sendMessageToUser(follower.pk, 'Thank you for following! This is an automated message.');
+          await sendMessageToUser(follower.pk, message);
         }
       }
 
