@@ -6,4 +6,5 @@ services:
       dockerfile: Dockerfile
     volumes:
       - ./followers.json:/app/followers.json
+      - ./.env:/app/.env
     restart: always
