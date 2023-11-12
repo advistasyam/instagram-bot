@@ -3,7 +3,6 @@ import fs from 'fs';
 import dotenv from "dotenv";
 import Bluebird from "bluebird";
 
-// read .env file
 dotenv.config();
 
 const username = process.env.IG_USERNAME
@@ -41,7 +40,6 @@ function reloadEnv() {
 async function login() {
   console.log("trying to login")
 
-  // Perform usual login
   // If 2FA is enabled, IgLoginTwoFactorRequiredError will be thrown
   return Bluebird.try(() => ig.account.login(username, password)).catch(
       IgLoginTwoFactorRequiredError,
@@ -49,27 +47,26 @@ async function login() {
         const {username, totp_two_factor_on, two_factor_identifier} = err.response.body.two_factor_info;
 
         console.log(err.response.body);
-        // decide which method to use
-        const verificationMethod = totp_two_factor_on ? '0' : '1'; // default to 1 for SMS
-        // At this point a code should have been sent
+
+        const verificationMethod = totp_two_factor_on ? '0' : '1'; // '1' = SMS (default), '0' = TOTP (google auth for example)
+
         console.log("change .env now")
         await sleep(10000)
         reloadEnv();
-        // Use the code to finish the login process
+
         const code = process.env.CODE
         return ig.account.twoFactorLogin({
           username,
           verificationCode: code,
           twoFactorIdentifier: two_factor_identifier,
-          verificationMethod, // '1' = SMS (default), '0' = TOTP (google auth for example)
-          trustThisDevice: '1', // Can be omitted as '1' is used by default
+          verificationMethod,
+          trustThisDevice: '1',
         });
       },
   ).catch(e => console.error('An error occurred while processing two factor auth', e, e.stack));
 }
 
 (async () => {
-  // Restore previous state if available
   if (savedState) {
     await ig.state.deserialize(savedState);
   }
